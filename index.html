@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generatore Tabellone - Idee di Plastica</title>
+    <!-- Libreria per screenshot -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; padding: 20px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); position: relative; }
+        
+        /* Selettore Lingua */
+        .lang-switch { position: absolute; top: 20px; right: 20px; display: flex; gap: 5px; background: #eef1f6; padding: 5px; border-radius: 8px; border: 1px solid #d0d7e5; }
+        .lang-btn { background: transparent; border: none; padding: 5px 10px; cursor: pointer; font-weight: bold; border-radius: 4px; color: #666; transition: 0.2s; }
+        .lang-btn.active { background: #1a2a6c; color: white; }
+        
+        h1 { text-align: center; color: #1a2a6c; margin-bottom: 5px; margin-top: 10px; }
+        .brand { text-align: center; color: #666; font-size: 14px; margin-bottom: 25px; }
+        
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        input[type="text"] { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 15px; box-sizing: border-box; text-transform: uppercase; border: 2px solid #ccc; border-radius: 6px; }
+        input[type="text"]:focus { border-color: #1a2a6c; outline: none; }
+        
+        .button-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        button.action-btn { flex: 1; background-color: #1a2a6c; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 6px; transition: background 0.2s; }
+        button.action-btn:hover { background-color: #121d4a; }
+        button.export-btn { background-color: #2e7d32; display: none; }
+        button.export-btn:hover { background-color: #1b5e20; }
+        
+        #export-area { background-color: white; padding: 20px; border-radius: 8px; }
+
+        /* Stile del tabellone */
+        #board-container { background-color: #b8860b; padding: 15px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; border: 5px solid #1a2a6c; }
+        .row { display: flex; justify-content: center; margin-bottom: 4px; }
+        .cell { width: 35px; height: 50px; margin: 0 2px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; border-radius: 2px; }
+        .cell.vuota { background-color: #3cb371; box-shadow: inset 0 0 6px rgba(0,0,0,0.25); }
+        .cell.lettera { background-color: white; color: black; box-shadow: 1px 1px 4px rgba(0,0,0,0.3); }
+        
+        .output-section { margin-top: 25px; }
+        .summary { background: #eef1f6; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #d0d7e5; }
+        .summary h3 { margin-top: 0; color: #1a2a6c; }
+        .badge-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 15px 0; }
+        .letter-badge { background: white; padding: 6px 12px; border-radius: 6px; box-shadow: 1px 1px 3px rgba(0,0,0,0.15); font-size: 15px; border: 1px solid #ccc; }
+        .letter-badge b { font-size: 18px; color: #1a2a6c; margin-right: 4px; }
+        .totals { font-size: 16px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="lang-switch">
+        <button id="btn-it" class="lang-btn active" onclick="setLang('it')">IT</button>
+        <button id="btn-en" class="lang-btn" onclick="setLang('en')">EN</button>
+    </div>
+
+    <h1 id="ui-title">Generatore Frasi per Tabellone</h1>
+    <div class="brand">by Idee di Plastica</div>
+    
+    <label id="ui-label" for="frase">Inserisci la tua frase:</label>
+    <input type="text" id="frase" placeholder="Es. A MESSA I FEDELI SI SCAMBIANO UN GESTO">
+    
+    <div class="button-group">
+        <button id="ui-btn-gen" class="action-btn" onclick="generaLayout()">Genera Layout</button>
+        <button id="btn-export" class="action-btn export-btn" onclick="esportaImmagine()">⬇️ Scarica Immagine (PNG)</button>
+    </div>
+
+    <div id="export-area">
+        <div id="board-container"></div>
+        <div class="output-section">
+            <div class="summary" id="summary"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const caps = [12, 14, 14, 12];
+    
+    // Dizionario delle traduzioni
+    const dict = {
+        it: {
+            title: "Generatore Frasi per Tabellone",
+            label: "Inserisci la tua frase:",
+            placeholder: "Es. A MESSA I FEDELI SI SCAMBIANO UN GESTO",
+            btnGen: "Genera Layout",
+            btnExp: "⬇️ Scarica Immagine (PNG)",
+            alert: "La frase è troppo lunga o contiene parole che non entrano nel tabellone!",
+            sumTitle: "Riepilogo Pezzi da Stampare",
+            sumEmpty: "Nessuna lettera inserita",
+            sumWhite: "Tessere Lettera (Bianche):",
+            sumGreen: "Tessere Vuote (Verdi):"
+        },
+        en: {
+            title: "Board Phrase Generator",
+            label: "Enter your phrase:",
+            placeholder: "E.g. A BIRD IN THE HAND IS WORTH TWO IN THE BUSH",
+            btnGen: "Generate Layout",
+            btnExp: "⬇️ Download Image (PNG)",
+            alert: "The phrase is too long or contains words that do not fit the board!",
+            sumTitle: "Parts to Print Summary",
+            sumEmpty: "No letters entered",
+            sumWhite: "Letter Tiles (White):",
+            sumGreen: "Blank Tiles (Green):"
+        }
+    };
+    
+    let currentLang = 'it';
+
+    // Funzione per cambiare lingua
+    function setLang(lang) {
+        currentLang = lang;
+        
+        // Aggiorna bottoni switch
+        document.getElementById('btn-it').classList.toggle('active', lang === 'it');
+        document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+        
+        // Aggiorna testi UI statici
+        document.getElementById('ui-title').textContent = dict[lang].title;
+        document.getElementById('ui-label').textContent = dict[lang].label;
+        document.getElementById('frase').placeholder = dict[lang].placeholder;
+        document.getElementById('ui-btn-gen').textContent = dict[lang].btnGen;
+        document.getElementById('btn-export').textContent = dict[lang].btnExp;
+        
+        // Rigenera il layout per aggiornare i testi dinamici del riepilogo
+        generaLayout();
+    }
+
+    function generaLayout() {
+        let input = document.getElementById('frase').value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/\s+/g, ' ').trim();
+        let words = input === "" ? [] : input.split(' ');
+        
+        if (words.length === 0) {
+            document.getElementById('board-container').innerHTML = "";
+            document.getElementById('summary').innerHTML = "";
+            document.getElementById('btn-export').style.display = 'none';
+            return;
+        }
+
+        function findBestLayout(maxWidths) {
+            let validLayouts = [];
+            function wrapWords(wordIndex, currentLines, currentRow) {
+                if (wordIndex === words.length) { validLayouts.push([...currentLines]); return; }
+                if (currentRow > 3) return;
+                
+                let word = words[wordIndex];
+                if (currentLines[currentRow].length === 0) {
+                     if (word.length <= maxWidths[currentRow]) {
+                         let nextLines = [...currentLines];
+                         nextLines[currentRow] = word;
+                         wrapWords(wordIndex + 1, nextLines, currentRow);
+                     }
+                } else {
+                     if (currentLines[currentRow].length + 1 + word.length <= maxWidths[currentRow]) {
+                         let nextLines = [...currentLines];
+                         nextLines[currentRow] += " " + word;
+                         wrapWords(wordIndex + 1, nextLines, currentRow);
+                     }
+                }
+                if (currentRow < 3 && currentLines[currentRow].length > 0) {
+                     if (word.length <= maxWidths[currentRow + 1]) {
+                         let nextLines = [...currentLines];
+                         nextLines[currentRow + 1] = word;
+                         wrapWords(wordIndex + 1, nextLines, currentRow + 1);
+                     }
+                }
+            }
+            wrapWords(0, ["", "", "", ""], 0);
+            if (validLayouts.length === 0) return null;
+            
+            let bestLayout = validLayouts[0];
+            let minVariance = Infinity;
+            for (let layout of validLayouts) {
+                let usedLengths = layout.filter(l => l.length > 0).map(l => l.length);
+                if (usedLengths.length === 0) continue;
+                let mean = usedLengths.reduce((a, b) => a + b, 0) / usedLengths.length;
+                let variance = usedLengths.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / usedLengths.length;
+                let score = variance + (usedLengths.length * 0.5); 
+                if (score < minVariance) { minVariance = score; bestLayout = layout; }
+            }
+            return bestLayout;
+        }
+
+        let innerMode = true;
+        let lines = findBestLayout([12, 12, 12, 12]);
+        if (!lines) { innerMode = false; lines = findBestLayout([12, 14, 14, 12]); }
+        if (!lines) { alert(dict[currentLang].alert); return; }
+
+        let boardHTML = "";
+        let letterCounts = {};
+        let totalLetters = 0;
+
+        for (let r = 0; r < 4; r++) {
+            let line = lines[r];
+            let padLeft = innerMode ? (r === 1 || r === 2 ? 1 : 0) : 0;
+            let padRight = caps[r] - line.length - padLeft;
+            let fullLine = " ".repeat(padLeft) + line + " ".repeat(padRight);
+
+            boardHTML += '<div class="row">';
+            for (let char of fullLine) {
+                if (char !== ' ') {
+                    letterCounts[char] = (letterCounts[char] || 0) + 1;
+                    totalLetters++;
+                    boardHTML += `<div class="cell lettera">${char}</div>`;
+                } else {
+                    boardHTML += `<div class="cell vuota"></div>`;
+                }
+            }
+            boardHTML += '</div>';
+        }
+
+        document.getElementById('board-container').innerHTML = boardHTML;
+
+        let blanks = 52 - totalLetters;
+        let summaryHTML = `<h3>${dict[currentLang].sumTitle}</h3>`;
+        let sortedLetters = Object.keys(letterCounts).sort();
+        
+        summaryHTML += "<div class='badge-container'>";
+        if(sortedLetters.length === 0) {
+            summaryHTML += `<span style='color:#666; font-style:italic;'>${dict[currentLang].sumEmpty}</span>`;
+        }
+        for (let l of sortedLetters) {
+            summaryHTML += `<div class='letter-badge'><b>${l}</b> : ${letterCounts[l]}</div>`;
+        }
+        summaryHTML += "</div>";
+        summaryHTML += `<hr style="border: 0; border-top: 1px solid #d0d7e5; margin: 20px 0;">`;
+        summaryHTML += `<div class='totals'>`;
+        summaryHTML += `${dict[currentLang].sumWhite} <b>${totalLetters}</b><br>`;
+        summaryHTML += `${dict[currentLang].sumGreen} <b>${blanks}</b>`;
+        summaryHTML += `</div>`;
+        
+        document.getElementById('summary').innerHTML = summaryHTML;
+        document.getElementById('btn-export').style.display = 'block';
+    }
+
+    function esportaImmagine() {
+        const areaEsportazione = document.getElementById('export-area');
+        html2canvas(areaEsportazione, { scale: 2, backgroundColor: "#ffffff" }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'tabellone_layout.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+    
+    // Inizializza lingua di default all'avvio
+    setLang('it');
+</script>
+
+</body>
+</html>
